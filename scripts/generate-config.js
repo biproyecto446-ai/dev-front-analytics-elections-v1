@@ -9,7 +9,8 @@ const root = path.resolve(__dirname, '..');
 const envPath = path.join(root, '.env');
 const outPath = path.join(root, 'config.js');
 
-let apiUrl = 'http://localhost:3001';
+// Prioriza variable de entorno (ideal para Vercel) y luego .env local
+let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 if (fs.existsSync(envPath)) {
   const content = fs.readFileSync(envPath, 'utf8');
   for (const line of content.split('\n')) {
