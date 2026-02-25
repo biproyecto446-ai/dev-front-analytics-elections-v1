@@ -1,0 +1,14 @@
+{
+  "name": "dev-front-appbi-v1",
+  "version": "1.0.0",
+  "description": "Frontend - Vista resultados unificados (consume API de dev-back-appbi-v1)",
+  "scripts": {
+    "config": "node scripts/generate-config.js",
+    "build": "npm run config",
+    "dev": "npm run config && npx serve . -p 3000",
+    "start": "npm run config && npx serve . -p 3000"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

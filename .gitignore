@@ -1,0 +1,14 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno (no subir a repositorio)
+.env
+.env.local
+.env.*.local
+
+# Config generada desde .env (opcional, se puede regenerar)
+# config.js
+
+# IDE / OS
+.DS_Store
+*.log

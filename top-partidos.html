@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Top 7 partidos por votación - Análisis Electoral</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="config.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --surface2: #f9fafb;
+      --border: #e5e7eb;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #3b82f6;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 1.25rem 1.5rem; }
+    @media (min-width: 900px) { .container { padding: 1.5rem 2rem; } }
+    .header-bar {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; background: var(--surface);
+      border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid var(--border);
+    }
+    .header-bar h1 { margin: 0; font-size: 1.4rem; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    .header-bar .subtitle { color: var(--muted); font-size: 0.8rem; margin-top: 0.4rem; max-width: 560px; line-height: 1.45; }
+    .nav-link {
+      display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.5rem 1rem;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); text-decoration: none; font-size: 0.9rem; font-weight: 500;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .nav-link:hover { background: var(--border); border-color: var(--muted); }
+    .nav-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .header-title-wrap { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .section-label { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem; }
+    .status-dot {
+      display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+    }
+    .status-dot.ok { background: #22c55e; }
+    .status-dot.error { background: #f43f5e; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .cards-row {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 1.25rem; margin-bottom: 1.75rem;
+    }
+    .election-card {
+      flex: 1; min-width: 260px; max-width: 360px;
+      padding: 1.5rem 1.75rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+    }
+    .election-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); border-color: var(--accent); transform: translateY(-2px); }
+    .election-card .card-year { font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 0.9rem; }
+    .election-card .card-total { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.35rem; }
+    .election-card .card-total span { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); font-size: 1rem; }
+    .election-card .card-winner { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.35rem; }
+    .election-card .card-winner strong { color: var(--accent); font-weight: 600; }
+    .election-card .card-winner-votes { font-size: 0.9rem; color: var(--muted); }
+    .election-card .card-winner-votes span { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); font-size: 1rem; }
+    .cards-loading { padding: 1rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
+    .filters-section { margin-bottom: 1.75rem; }
+    .filters-chart-row {
+      display: flex; flex-direction: row; gap: 1.25rem; align-items: stretch; margin-bottom: 1.5rem;
+    }
+    @media (max-width: 900px) {
+      .filters-chart-row { flex-direction: column; }
+      .filters-chart-col-filters { flex: none; width: 100%; }
+      .filters-chart-col-chart { min-height: 320px; }
+    }
+    .filters-chart-col-filters { flex: 0 0 25%; min-width: 0; }
+    .filters-chart-col-chart { flex: 1; min-width: 0; min-height: 340px; }
+    .filters-card {
+      background: var(--surface); border-radius: 12px; border: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden; height: 100%;
+    }
+    .filters-card .filters-main {
+      display: flex; flex-direction: column; align-items: stretch; gap: 1rem; padding: 1.25rem 1.25rem;
+    }
+    .filters-card .filters-main .filter-group { width: 100%; }
+    .filter-hint { font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; }
+    .filter-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .filter-group label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .filter-group select {
+      padding: 0.55rem 0.9rem; min-width: 160px; font-size: 0.9rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+      cursor: pointer; transition: border-color 0.2s;
+    }
+    .filter-group select:hover { border-color: var(--muted); }
+    .filter-group select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+    .party-combobox { position: relative; min-width: 220px; }
+    .party-combobox .party-trigger {
+      width: 100%; padding: 0.55rem 2rem 0.55rem 0.9rem; font-size: 0.9rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+      text-align: left; cursor: pointer; appearance: none;
+      transition: border-color 0.2s, box-shadow 0.2s; display: flex; align-items: center; min-height: 38px;
+    }
+    .party-combobox .party-trigger:hover { border-color: var(--muted); }
+    .party-combobox .party-trigger:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+    .party-combobox .party-trigger .party-trigger-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .party-combobox .party-trigger .party-trigger-chevron {
+      position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%);
+      width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid var(--muted);
+      pointer-events: none;
+    }
+    .party-combobox.open .party-trigger { border-color: var(--accent); }
+    .party-combobox .party-dropdown {
+      position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; display: none;
+      overflow: hidden;
+    }
+    .party-combobox.open .party-dropdown { display: block; }
+    .party-combobox .party-search-wrap { padding: 0.5rem; border-bottom: 1px solid var(--border); }
+    .party-combobox .party-search-wrap input {
+      width: 100%; padding: 0.4rem 0.65rem; font-size: 0.85rem;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+    }
+    .party-combobox .party-search-wrap input:focus { border-color: var(--accent); outline: none; }
+    .party-combobox .party-search-wrap input::placeholder { color: var(--muted); }
+    .party-combobox .party-list { max-height: 200px; overflow-y: auto; }
+    .party-combobox .party-option {
+      padding: 0.5rem 0.85rem; cursor: pointer; font-size: 0.9rem; color: var(--text);
+      transition: background 0.15s;
+    }
+    .party-combobox .party-option:hover { background: var(--surface2); }
+    .party-combobox .party-option.none { color: var(--muted); }
+    .party-combobox .party-option.no-match { display: none; }
+    .btn-apply {
+      padding: 0.55rem 1.35rem; font-size: 0.9rem; font-weight: 600; border-radius: 8px;
+      background: var(--accent); color: #fff; border: none; cursor: pointer;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+    }
+    .btn-apply:hover { background: #2563eb; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(59,130,246,0.35); }
+    .btn-apply:active { transform: translateY(0); }
+    .btn-apply:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .btn-apply:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .filter-group .btn-apply + .btn-clear { margin-top: 0.5rem; }
+    .btn-clear {
+      padding: 0.5rem 1.1rem; font-size: 0.85rem; font-weight: 500; border-radius: 8px;
+      background: transparent; color: var(--muted); border: 1px solid var(--border);
+      cursor: pointer; transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .btn-clear:hover { background: var(--surface2); color: var(--text); border-color: var(--muted); }
+    .btn-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .panel-title { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.95rem; color: var(--text); }
+    .panel-body { padding: 1.25rem; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed; }
+    th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); overflow: hidden; }
+    th { background: var(--surface2); font-weight: 600; color: var(--text); }
+    tr:hover { background: var(--surface2); }
+    .col-rank { width: 56px; min-width: 56px; text-align: center; font-weight: 600; color: var(--muted); }
+    .col-partido { min-width: 200px; word-break: break-word; }
+    .col-votos { width: 120px; min-width: 120px; text-align: right; font-variant-numeric: tabular-nums; }
+    .col-comparacion { width: 160px; min-width: 160px; text-align: right; font-size: 0.85rem; }
+    .comparacion-arriba { color: #16a34a; }
+    .comparacion-abajo { color: #dc2626; }
+    .chart-panel { margin-bottom: 0; height: 100%; display: flex; flex-direction: column; }
+    .chart-panel .panel-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .chart-wrap { flex: 1; min-height: 280px; height: 100%; }
+    .chart-placeholder {
+      display: flex; align-items: center; justify-content: center; min-height: 320px;
+      background: var(--surface2); border: 1px dashed var(--border); border-radius: 12px;
+      color: var(--muted); font-size: 0.95rem; padding: 2rem; text-align: center;
+    }
+    .chart-placeholder.hidden { display: none; }
+    .filters-chart-col-chart { position: relative; }
+    .chart-labels {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem;
+      padding: 0.75rem 0 1rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .chart-labels .chart-label {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.35rem 0.75rem; background: var(--surface2); border-radius: 8px;
+      color: var(--text);
+    }
+    .chart-labels .chart-label strong { color: var(--accent); font-weight: 600; }
+    .chart-labels .chart-label.party {
+      background: rgba(34, 197, 94, 0.12); border-left: 4px solid #22c55e;
+      font-weight: 500;
+    }
+    .chart-labels .chart-label.party strong { color: #16a34a; }
+    .chart-labels .chart-label.dept {
+      background: rgba(59, 130, 246, 0.1); border-left: 4px solid var(--accent);
+    }
+    .chart-labels .chart-label.dept strong { color: var(--accent); }
+    .chart-legend {
+      display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);
+      font-size: 0.8rem; color: var(--muted);
+    }
+    .chart-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .chart-legend .dot { width: 12px; height: 12px; border-radius: 4px; }
+    .chart-legend .dot.gray { background: #9ca3af; }
+    .chart-legend .dot.green { background: #22c55e; }
+    .loading-msg { padding: 2rem; text-align: center; color: var(--muted); }
+    .error-msg { color: #dc2626; padding: 1rem; }
+    .empty-msg { padding: 2rem; text-align: center; color: var(--muted); }
+    .page-loader {
+      position: fixed; inset: 0; background: rgba(255,255,255,0.85); z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+      transition: opacity 0.25s ease; pointer-events: none;
+    }
+    .page-loader.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
+    .page-loader-spinner {
+      width: 48px; height: 48px; border: 4px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: page-loader-spin 0.9s linear infinite;
+    }
+    @keyframes page-loader-spin { to { transform: rotate(360deg); } }
+    .page-loader-text { font-size: 0.95rem; font-weight: 500; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="page-loader" id="pageLoader" role="status" aria-live="polite" aria-label="Cargando">
+    <div class="page-loader-spinner" aria-hidden="true"></div>
+    <span class="page-loader-text" id="pageLoaderText">Cargando…</span>
+  </div>
+  <div class="container">
+    <header class="header-bar">
+      <div>
+        <div class="header-title-wrap">
+          <span id="apiStatusDot" class="status-dot" aria-hidden="true" title="Estado de conexión"></span>
+          <h1>Top 7 partidos por votación</h1>
+        </div>
+        <p class="subtitle">Top 7 por votos. Filtra por año, departamento, municipio y partido a comparar. <span id="apiStatusA11y" class="sr-only" role="status" aria-live="polite"></span></p>
+      </div>
+      <a href="index.html" class="nav-link">← Volver al análisis</a>
+    </header>
+
+    <div class="cards-row" id="electionCards">
+      <div class="cards-loading" id="cardsLoading">Cargando resumen de elecciones…</div>
+    </div>
+
+    <section class="filters-section" aria-label="Filtros y gráfica">
+      <p class="section-label">Filtros y variación de votos</p>
+      <div class="filters-chart-row">
+        <div class="filters-chart-col-filters">
+          <div class="filters-card">
+            <div class="filters-main">
+              <div class="filter-group">
+                <label for="filterYear">Año</label>
+                <select id="filterYear">
+                  <option value="">Cargando…</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label for="partyTrigger">Partido a comparar</label>
+                <div class="party-combobox" id="partyCombobox">
+                  <button type="button" id="partyTrigger" class="party-trigger" aria-label="Partido a comparar" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="party-trigger-text" id="partyTriggerText">Seleccione partido a comparar</span>
+                    <span class="party-trigger-chevron" aria-hidden="true"></span>
+                  </button>
+                  <input type="hidden" id="filterPartyValue" value="">
+                  <div class="party-dropdown" id="partyDropdown">
+                    <div class="party-search-wrap">
+                      <input type="text" id="partySearchInput" placeholder="Buscar partido…" autocomplete="off" aria-label="Buscar partido">
+                    </div>
+                    <div class="party-list" id="partyList" role="listbox"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="filter-group">
+                <label for="filterDept">Departamento</label>
+                <select id="filterDept">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label for="filterMun">Municipio</label>
+                <select id="filterMun">
+                  <option value="">Todos</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label>&nbsp;</label>
+                <button type="button" class="btn-apply" id="btnApply">Actualizar</button>
+                <button type="button" class="btn-clear" id="btnClear">Limpiar filtros</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="filters-chart-col-chart">
+          <div class="panel chart-panel" id="chartPanel" style="display: none;">
+            <div class="panel-title">Variación de votos (Top 7)</div>
+            <div class="panel-body">
+              <div class="chart-labels" id="chartLabels"></div>
+              <div class="chart-wrap"><canvas id="topPartidosChart"></canvas></div>
+              <div class="chart-legend" id="chartLegend">
+                <span><span class="dot gray" aria-hidden="true"></span> Top 7 partidos</span>
+                <span><span class="dot green" aria-hidden="true"></span> Partido a comparar</span>
+              </div>
+            </div>
+          </div>
+          <div class="chart-placeholder" id="chartPlaceholder">
+            <p>Selecciona un año y pulsa <strong>Actualizar</strong> para ver la gráfica.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="panel">
+      <div class="panel-title">Resultados <span class="panel-subtitle" id="resultsSubtitle"></span></div>
+      <div class="panel-body">
+        <div id="tableLoading" class="loading-msg">Selecciona al menos un año y pulsa Actualizar.</div>
+        <div id="tableError" class="error-msg" style="display: none;"></div>
+        <div id="tableEmpty" class="empty-msg" style="display: none;">No hay datos con los filtros seleccionados.</div>
+        <div class="table-wrap" id="tableWrap" style="display: none;">
+          <table>
+            <thead>
+              <tr id="tableHeadRow">
+                <th class="col-rank">#</th>
+                <th class="col-partido">Partido</th>
+                <th class="col-votos">Total votos</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main-top-partidos.js"></script>
+  <!-- Config opcional: <script>window.__APP_CONFIG__={apiBaseUrl:'http://localhost:3001'};</script> -->
+</body>
+</html>
