@@ -1,10 +1,17 @@
 /**
- * UI: tarjetas de resumen de elecciones.
+ * UI: tarjetas de resumen de elecciones (por año, tabla compacta por corporación).
  */
+
+function escapeHtml(s) {
+  if (s == null || s === '') return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
 
 /**
  * @param {HTMLElement} container
- * @param {Array<{ year: number; totalVotos?: number; partidoGanador?: string; votosPartidoGanador?: number }>} summaries
+ * @param {Array<{ year: number; corporations: Array<{ corporacion: string; totalVotos?: number; partidoGanador?: string; votosPartidoGanador?: number }> }>} summaries
  */
 export function renderElectionCards(container, summaries) {
   if (!container) return;
@@ -14,16 +21,33 @@ export function renderElectionCards(container, summaries) {
   }
   container.innerHTML = summaries
     .map((s) => {
-      const totalStr = s.totalVotos != null ? s.totalVotos.toLocaleString('es-CO') : '—';
-      const winner = s.partidoGanador || '—';
-      const votosGanadorStr = s.votosPartidoGanador != null ? s.votosPartidoGanador.toLocaleString('es-CO') : '—';
+      const rowsHtml = (s.corporations || [])
+        .map((c) => {
+          const totalStr = c.totalVotos != null ? c.totalVotos.toLocaleString('es-CO') : '—';
+          const winner = c.partidoGanador || '—';
+          const votosStr = c.votosPartidoGanador != null ? c.votosPartidoGanador.toLocaleString('es-CO') : '—';
+          return (
+            '<tr>' +
+            '<td class="election-td-corp">' + escapeHtml(c.corporacion) + '</td>' +
+            '<td class="election-td-num">' + totalStr + '</td>' +
+            '<td class="election-td-party">' + escapeHtml(winner) + '</td>' +
+            '<td class="election-td-num">' + votosStr + '</td>' +
+            '</tr>'
+          );
+        })
+        .join('');
       return (
         '<div class="election-card">' +
         '<div class="card-year">Elección ' + s.year + '</div>' +
-        '<div class="card-total">Total votos: <span>' + totalStr + '</span></div>' +
-        '<div class="card-winner">Partido más votado: <strong>' + winner + '</strong></div>' +
-        '<div class="card-winner-votes">Votos del partido: <span>' + votosGanadorStr + '</span></div>' +
-        '</div>'
+        '<div class="election-card-table-wrap">' +
+        '<table class="election-card-table">' +
+        '<thead><tr>' +
+        '<th class="election-th-corp">Corporación</th>' +
+        '<th class="election-th-num">Total votos</th>' +
+        '<th class="election-th-party">Partido más votado</th>' +
+        '<th class="election-th-num">Votos</th>' +
+        '</tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
+        '</div></div>'
       );
     })
     .join('');

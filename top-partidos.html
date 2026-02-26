@@ -49,19 +49,21 @@
       display: flex; flex-wrap: wrap; justify-content: center; gap: 1.25rem; margin-bottom: 1.75rem;
     }
     .election-card {
-      flex: 1; min-width: 260px; max-width: 360px;
-      padding: 1.5rem 1.75rem; background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      flex: 1; min-width: 280px; max-width: 420px;
+      padding: 0.85rem 1rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
       transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
     }
     .election-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); border-color: var(--accent); transform: translateY(-2px); }
-    .election-card .card-year { font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 0.9rem; }
-    .election-card .card-total { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.35rem; }
-    .election-card .card-total span { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); font-size: 1rem; }
-    .election-card .card-winner { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.35rem; }
-    .election-card .card-winner strong { color: var(--accent); font-weight: 600; }
-    .election-card .card-winner-votes { font-size: 0.9rem; color: var(--muted); }
-    .election-card .card-winner-votes span { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); font-size: 1rem; }
+    .election-card .card-year { font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 0.4rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+    .election-card-table-wrap { overflow-x: auto; }
+    .election-card-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    .election-card-table th, .election-card-table td { padding: 0.28rem 0.4rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .election-card-table thead th { font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; font-size: 0.62rem; }
+    .election-th-corp, .election-td-corp { min-width: 68px; font-weight: 600; color: var(--accent); font-size: 0.72rem; }
+    .election-th-num, .election-td-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 4.8rem; font-weight: 600; color: var(--text); font-size: 0.72rem; }
+    .election-th-party, .election-td-party { min-width: 0; max-width: 120px; font-size: 0.68rem; color: var(--text); line-height: 1.25; word-break: break-word; }
+    .election-card-table tbody tr:hover { background: var(--surface2); }
     .cards-loading { padding: 1rem; text-align: center; color: var(--muted); font-size: 0.9rem; }
     .filters-section { margin-bottom: 1.75rem; }
     .filters-chart-row {
@@ -164,6 +166,8 @@
     .col-comparacion { width: 160px; min-width: 160px; text-align: right; font-size: 0.85rem; }
     .comparacion-arriba { color: #16a34a; }
     .comparacion-abajo { color: #dc2626; }
+    tr.tr-partido-comparado { background: rgba(34, 197, 94, 0.1); }
+    tr.tr-partido-comparado td.col-partido { font-weight: 600; color: #16a34a; }
     .chart-panel { margin-bottom: 0; height: 100%; display: flex; flex-direction: column; }
     .chart-panel .panel-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
     .chart-wrap { flex: 1; min-height: 280px; height: 100%; }
@@ -232,7 +236,7 @@
           <span id="apiStatusDot" class="status-dot" aria-hidden="true" title="Estado de conexión"></span>
           <h1>Top 7 partidos por votación</h1>
         </div>
-        <p class="subtitle">Top 7 por votos. Filtra por año, departamento, municipio y partido a comparar. <span id="apiStatusA11y" class="sr-only" role="status" aria-live="polite"></span></p>
+        <p class="subtitle">Top 7 por votos. Filtra por año, corporación, departamento, municipio y partido a comparar. <span id="apiStatusA11y" class="sr-only" role="status" aria-live="polite"></span></p>
       </div>
       <a href="index.html" class="nav-link">← Volver al análisis</a>
     </header>
@@ -251,6 +255,12 @@
                 <label for="filterYear">Año</label>
                 <select id="filterYear">
                   <option value="">Cargando…</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label for="filterCorporacion">Corporación</label>
+                <select id="filterCorporacion">
+                  <option value="">Todas</option>
                 </select>
               </div>
               <div class="filter-group">

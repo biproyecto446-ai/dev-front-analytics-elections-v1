@@ -18,6 +18,13 @@ export function setResultsSubtitle(resultsSubtitle, count, excludedName) {
   resultsSubtitle.textContent = text;
 }
 
+function escapeHtml(s) {
+  if (s == null || s === '') return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
 /**
  * @param {HTMLElement} tableHeadRow
  * @param {HTMLElement} tableBody
@@ -28,6 +35,21 @@ export function setResultsSubtitle(resultsSubtitle, count, excludedName) {
 export function renderResultsTable(tableHeadRow, tableBody, tableWrap, rows, excluded) {
   const showComparacion = excluded?.totalVotos != null && excluded.totalVotos > 0;
   const refVotos = excluded?.totalVotos ?? 0;
+
+  /** Incluir partido a comparar en la tabla: unir, ordenar por votos y reasignar rank. */
+  let rowsToShow = rows.map((r) => ({ partido: r.partido, totalVotos: r.totalVotos, rank: r.rank, isComparacion: false }));
+  if (excluded?.name != null && excluded.name !== '') {
+    rowsToShow.push({
+      partido: excluded.name,
+      totalVotos: excluded.totalVotos,
+      rank: -1,
+      isComparacion: true,
+    });
+    rowsToShow.sort((a, b) => (b.totalVotos ?? 0) - (a.totalVotos ?? 0));
+    rowsToShow.forEach((r, i) => {
+      r.rank = i + 1;
+    });
+  }
 
   const thComparacion = document.getElementById('thComparacion');
   if (showComparacion && !thComparacion) {
@@ -40,20 +62,25 @@ export function renderResultsTable(tableHeadRow, tableBody, tableWrap, rows, exc
     thComparacion.remove();
   }
 
-  tableBody.innerHTML = rows
+  tableBody.innerHTML = rowsToShow
     .map((row) => {
       const votosStr = row.totalVotos != null ? row.totalVotos.toLocaleString('es-CO') : '—';
       let comparacionCell = '';
       if (showComparacion && refVotos > 0 && row.totalVotos != null) {
-        const pct = ((row.totalVotos - refVotos) / refVotos) * 100;
-        const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
-        const clase = pct >= 0 ? 'comparacion-arriba' : 'comparacion-abajo';
-        const texto = pct >= 0 ? pctStr + ' por encima' : pctStr + ' por debajo';
-        comparacionCell = '<td class="col-comparacion ' + clase + '">' + texto + '</td>';
+        if (row.isComparacion) {
+          comparacionCell = '<td class="col-comparacion">Referencia</td>';
+        } else {
+          const pct = ((row.totalVotos - refVotos) / refVotos) * 100;
+          const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+          const clase = pct >= 0 ? 'comparacion-arriba' : 'comparacion-abajo';
+          const texto = pct >= 0 ? pctStr + ' por encima' : pctStr + ' por debajo';
+          comparacionCell = '<td class="col-comparacion ' + clase + '">' + texto + '</td>';
+        }
       } else if (showComparacion) {
-        comparacionCell = '<td class="col-comparacion">—</td>';
+        comparacionCell = '<td class="col-comparacion">' + (row.isComparacion ? 'Referencia' : '—') + '</td>';
       }
-      return '<tr><td class="col-rank">' + row.rank + '</td><td class="col-partido">' + (row.partido || '—') + '</td><td class="col-votos">' + votosStr + '</td>' + comparacionCell + '</tr>';
+      const trClass = row.isComparacion ? ' tr-partido-comparado' : '';
+      return '<tr class="' + trClass + '"><td class="col-rank">' + row.rank + '</td><td class="col-partido">' + escapeHtml(row.partido || '—') + '</td><td class="col-votos">' + votosStr + '</td>' + comparacionCell + '</tr>';
     })
     .join('');
   tableWrap.style.display = 'block';

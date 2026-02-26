@@ -19,6 +19,9 @@ export function createHttpCongresoApi() {
     getYears() {
       return fetch(base() + '/api/congreso-report/years').then(handleResponse);
     },
+    getCorporations() {
+      return fetch(base() + '/api/congreso-report/corporations').then(handleResponse);
+    },
     getDepartments() {
       return fetch(base() + '/api/congreso-report/departments').then(handleResponse);
     },
@@ -30,6 +33,7 @@ export function createHttpCongresoApi() {
     getParties(params) {
       const q = new URLSearchParams();
       if (params.year) q.set('year', params.year);
+      if (params.corporation) q.set('corporation', params.corporation);
       if (params.department) q.set('department', params.department);
       if (params.municipality) q.set('municipality', params.municipality);
       return fetch(base() + '/api/congreso-report/parties?' + q.toString()).then(handleResponse);
@@ -37,6 +41,7 @@ export function createHttpCongresoApi() {
     getTopPartidos(params) {
       const q = new URLSearchParams();
       if (params.year) q.set('year', params.year);
+      if (params.corporation) q.set('corporation', params.corporation);
       if (params.department) q.set('department', params.department);
       if (params.municipality) q.set('municipality', params.municipality);
       if (params.excludeParty) q.set('excludeParty', params.excludeParty);

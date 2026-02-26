@@ -14,6 +14,9 @@ export function createCongresoUseCases(api) {
     loadYears() {
       return api.getYears();
     },
+    loadCorporations() {
+      return api.getCorporations();
+    },
     loadDepartments() {
       return api.getDepartments();
     },

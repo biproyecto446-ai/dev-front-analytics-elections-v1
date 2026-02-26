@@ -13,6 +13,7 @@ function getRefs() {
     pageLoader: document.getElementById('pageLoader'),
     pageLoaderText: document.getElementById('pageLoaderText'),
     filterYear: document.getElementById('filterYear'),
+    filterCorporacion: document.getElementById('filterCorporacion'),
     filterDept: document.getElementById('filterDept'),
     filterMun: document.getElementById('filterMun'),
     partyTrigger: document.getElementById('partyTrigger'),
@@ -128,6 +129,20 @@ export function initTopPartidosPage() {
       });
   }
 
+  function loadCorporations() {
+    return useCases.loadCorporations()
+      .then(function(data) {
+        var list = data.corporations || [];
+        refs.filterCorporacion.innerHTML = '<option value="">Todas</option>' +
+          list.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+        var senado = list.find(function(c) { return String(c).toLowerCase() === 'senado'; });
+        if (senado) refs.filterCorporacion.value = senado;
+      })
+      .catch(function() {
+        refs.filterCorporacion.innerHTML = '<option value="">Todas</option><option value="" disabled>Error al cargar</option>';
+      });
+  }
+
   function loadDepartments() {
     return useCases.loadDepartments()
       .then(function(data) {
@@ -173,8 +188,10 @@ export function initTopPartidosPage() {
       return;
     }
     var params = { year: year };
+    var corp = (refs.filterCorporacion.value || '').trim();
     var dept = (refs.filterDept.value || '').trim();
     var mun = (refs.filterMun.value || '').trim();
+    if (corp) params.corporation = corp;
     if (dept) params.department = dept;
     if (mun) params.municipality = mun;
     useCases.loadParties(params)
@@ -210,10 +227,12 @@ export function initTopPartidosPage() {
       topPartidosChartInstance.destroy();
       topPartidosChartInstance = null;
     }
+    var corp = String(refs.filterCorporacion.value || '').trim();
     var dept = String(refs.filterDept.value || '').trim();
     var mun = String(refs.filterMun.value || '').trim();
     var party = (refs.filterPartyValue.value || '').trim();
     var params = { year: year };
+    if (corp) params.corporation = corp;
     if (dept) params.department = dept;
     if (mun) params.municipality = mun;
     if (party) params.excludeParty = party;
@@ -233,7 +252,8 @@ export function initTopPartidosPage() {
           if (topPartidosChartInstance) { topPartidosChartInstance.destroy(); topPartidosChartInstance = null; }
           return;
         }
-        setResultsSubtitle(refs.resultsSubtitle, rows.length, excluded && excluded.name ? excluded.name : null);
+        var countForSubtitle = rows.length + (excluded && excluded.name ? 1 : 0);
+        setResultsSubtitle(refs.resultsSubtitle, countForSubtitle, excluded && excluded.name ? excluded.name : null);
         var totalVotosAmbito = data.totalVotosAmbito != null ? data.totalVotosAmbito : 0;
         var totalVotosDepartamento = data.totalVotosDepartamento != null ? data.totalVotosDepartamento : null;
         var deptName = '';
@@ -312,6 +332,7 @@ export function initTopPartidosPage() {
     }, 150);
   });
 
+  refs.filterCorporacion.addEventListener('change', loadParties);
   refs.filterDept.addEventListener('change', function() { loadMunicipalities(); loadParties(); });
   refs.filterMun.addEventListener('change', loadParties);
   refs.filterYear.addEventListener('change', function() {
@@ -320,6 +341,7 @@ export function initTopPartidosPage() {
   });
   refs.btnApply.addEventListener('click', loadTopPartidos);
   refs.btnClear.addEventListener('click', function() {
+    refs.filterCorporacion.value = '';
     refs.filterDept.value = '';
     refs.filterMun.innerHTML = '<option value="">Todos</option>';
     municipalities = [];
@@ -335,7 +357,7 @@ export function initTopPartidosPage() {
     loadTopPartidos();
   });
 
-  Promise.all([loadYears(), loadDepartments()]).then(function() {
+  Promise.all([loadYears(), loadDepartments(), loadCorporations()]).then(function() {
     hideLoader(refs);
     loadTopPartidos();
   }).catch(function() {
