@@ -37,6 +37,7 @@ function getRefs() {
     chartLabels: document.getElementById('chartLabels'),
     resultsSubtitle: document.getElementById('resultsSubtitle'),
     topPartidosChart: document.getElementById('topPartidosChart'),
+    btnDownloadExcel: document.getElementById('btnDownloadExcel'),
   };
 }
 
@@ -72,7 +73,56 @@ export function initTopPartidosPage() {
   var municipalities = [];
   var partiesList = [];
   var topPartidosChartInstance = null;
+  var lastTableData = null;
+  var lastExcluded = null;
   const ChartLib = typeof window !== 'undefined' && window.Chart ? window.Chart : null;
+
+  function buildRowsToShow(rows, excluded) {
+    var list = rows.map(function(r) { return { partido: r.partido, totalVotos: r.totalVotos, rank: r.rank, isComparacion: false }; });
+    if (excluded && excluded.name) {
+      list.push({ partido: excluded.name, totalVotos: excluded.totalVotos, rank: -1, isComparacion: true });
+      list.sort(function(a, b) { return (b.totalVotos || 0) - (a.totalVotos || 0); });
+      list.forEach(function(r, i) { r.rank = i + 1; });
+    }
+    return list;
+  }
+
+  function downloadTableToExcel() {
+    if (!lastTableData || lastTableData.length === 0) return;
+    var refVotos = lastExcluded && lastExcluded.totalVotos != null ? lastExcluded.totalVotos : 0;
+    var showComparacion = refVotos > 0;
+    var escapeCsv = function(val) {
+      var s = val == null ? '' : String(val);
+      if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    };
+    var headers = ['#', 'Partido', 'Total votos'];
+    if (showComparacion) headers.push('Comparación');
+    var lines = [headers.map(escapeCsv).join(',')];
+    lastTableData.forEach(function(r) {
+      var votosStr = r.totalVotos != null ? r.totalVotos.toLocaleString('es-CO') : '—';
+      var compStr = '—';
+      if (showComparacion && refVotos > 0) {
+        if (r.isComparacion) compStr = 'Referencia';
+        else if (r.totalVotos != null) {
+          var pct = ((r.totalVotos - refVotos) / refVotos) * 100;
+          compStr = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '% ' + (pct >= 0 ? 'por encima' : 'por debajo');
+        }
+      }
+      var row = [r.rank, r.partido || '—', votosStr];
+      if (showComparacion) row.push(compStr);
+      lines.push(row.map(escapeCsv).join(','));
+    });
+    var csv = '\uFEFF' + lines.join('\r\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    var year = (refs.filterYear && refs.filterYear.value) || 'datos';
+    a.download = 'top-partidos-' + year + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   function renderPartyDropdown(query) {
     var q = (query || '').toLowerCase();
@@ -277,6 +327,9 @@ export function initTopPartidosPage() {
         if (refs.topPartidosChart && ChartLib) {
           topPartidosChartInstance = renderTopPartidosChart(refs.topPartidosChart, rows, excluded, { chartPanel: refs.chartPanel, chartPlaceholder: refs.chartPlaceholder }, ChartLib);
         }
+        lastTableData = buildRowsToShow(rows, excluded);
+        lastExcluded = excluded;
+        if (refs.btnDownloadExcel) refs.btnDownloadExcel.disabled = false;
         renderResultsTable(refs.tableHeadRow, refs.tableBody, refs.tableWrap, rows, excluded);
       })
       .catch(function(err) {
@@ -287,8 +340,13 @@ export function initTopPartidosPage() {
         if (topPartidosChartInstance) { topPartidosChartInstance.destroy(); topPartidosChartInstance = null; }
         refs.tableError.style.display = 'block';
         refs.tableError.textContent = 'No se pudieron cargar los datos: ' + (err.message || 'Error de conexión');
+        lastTableData = null;
+        lastExcluded = null;
+        if (refs.btnDownloadExcel) refs.btnDownloadExcel.disabled = true;
       });
   }
+
+  if (refs.btnDownloadExcel) refs.btnDownloadExcel.addEventListener('click', downloadTableToExcel);
 
   useCases.checkConnection()
     .then(function(r) { setConnectionStatus(refs, r.ok, r.ok ? null : 'API no responde'); })

@@ -82,6 +82,15 @@
     @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
     .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
     .panel-title { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.95rem; color: var(--text); letter-spacing: 0.01em; }
+    .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); }
+    .panel-title-row .panel-title { padding: 0; margin: 0; border: none; flex: 1; min-width: 0; }
+    .panel-title-filter select {
+      padding: 0.4rem 0.75rem; font-size: 0.85rem; min-width: 140px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+      cursor: pointer;
+    }
+    .panel-title-filter select:hover { border-color: var(--muted); }
+    .panel-title-filter select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
     .panel-body { padding: 1.15rem 1.25rem; }
     .right-column { display: flex; flex-direction: column; gap: 1.25rem; }
     .map-container-wrap { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
@@ -232,7 +241,15 @@
         </div>
         <div class="panels-row">
           <div class="panel">
-            <div class="panel-title">Partido con más votación por departamento</div>
+            <div class="panel-title-row panel-title-row-corp">
+              <span class="panel-title">Partido con más votación por departamento</span>
+              <div class="panel-title-filter">
+                <label for="filterCorporacion" class="sr-only">Corporación</label>
+                <select id="filterCorporacion" aria-label="Filtrar por corporación">
+                  <option value="">Todas</option>
+                </select>
+              </div>
+            </div>
             <div class="panel-body">
               <div id="top5ByDeptContainer" class="top5-by-dept-container"></div>
               <p class="loading-data" id="top5ByDeptLoading">Selecciona departamentos y año.</p>
@@ -285,7 +302,76 @@
     let map = null;
     let geoJsonLayer = null;
 
-    function normCode(c) { return String(c).padStart(2, '0'); }
+    /**
+     * Mapeo código departamento (tu carga/API) → código GeoJSON (mapa DANE estándar).
+     * Clave: código que envía tu API/BD (2 dígitos normalizados).
+     * Valor: código del GeoJSON (depto.json, estándar DANE).
+     */
+    var DEPT_CODE_MAP = {
+      '00': null,      // DEPARTAMENTO (genérico, no pinta en mapa)
+      '01': '05',      // ANTIOQUIA
+      '03': '08',      // ATLANTICO
+      '05': '13',      // BOLIVAR
+      '07': '15',      // BOYACA
+      '09': '17',      // CALDAS
+      '11': '19',      // CAUCA
+      '12': '20',      // CESAR
+      '13': '23',      // CORDOBA
+      '15': '25',      // CUNDINAMARCA
+      '16': '11',      // BOGOTA D.C.
+      '17': '27',      // CHOCO
+      '19': '41',      // HUILA
+      '21': '47',      // MAGDALENA
+      '23': '52',      // NARIÑO
+      '24': '66',      // RISARALDA
+      '25': '54',      // NORTE DE SAN (Norte de Santander)
+      '26': '63',      // QUINDIO
+      '27': '68',      // SANTANDER
+      '28': '70',      // SUCRE
+      '29': '73',      // TOLIMA
+      '31': '76',      // VALLE (Valle del Cauca)
+      '40': '81',      // ARAUCA
+      '44': '18',      // CAQUETA
+      '46': '85',      // CASANARE
+      '48': '44',      // LA GUAJIRA
+      '50': '94',      // GUAINIA
+      '52': '50',      // META
+      '54': '95',      // GUAVIARE
+      '56': '88',      // SAN ANDRES
+      '60': '91',      // AMAZONAS
+      '64': '86',      // PUTUMAYO
+      '68': '97',      // VAUPES
+      '72': '99',      // VICHADA
+      '88': '88',     // CONSULADOS (se pinta como San Andrés en mapa; si no debe pintarse, usar null)
+    };
+
+    /** Normaliza código de departamento: quita ceros a la izquierda y pad a 2 dígitos (ej: "011"→"11", "5"→"05"). Códigos de 5 dígitos se dejan como están para poder mapearlos. */
+    function normCode(c) {
+      if (c == null || c === '') return '';
+      var s = String(c).trim().replace(/^0+/, '') || '0';
+      if (s.length <= 2) return s.padStart(2, '0');
+      return s;
+    }
+
+    /** Convierte código de la API/BD al código usado en el GeoJSON del mapa (usa DEPT_CODE_MAP). Si el mapa devuelve null, no pinta (retorna ''). */
+    function apiCodeToGeoCode(apiCode) {
+      var n = normCode(apiCode);
+      if (DEPT_CODE_MAP.hasOwnProperty(n)) {
+        var geo = DEPT_CODE_MAP[n];
+        if (geo == null) return '';
+        return normCode(String(geo));
+      }
+      if (n.length > 2) return n.substring(0, 2).padStart(2, '0');
+      return n;
+    }
+
+    /** Obtiene el código de departamento de un feature del GeoJSON (soporta DPTO, COD_DPTO, codigo_departamento). */
+    function getGeoDeptCode(feature) {
+      if (!feature || !feature.properties) return '';
+      var p = feature.properties;
+      var code = p.DPTO != null ? p.DPTO : (p.COD_DPTO != null ? p.COD_DPTO : (p.codigo_departamento != null ? p.codigo_departamento : ''));
+      return String(code).trim();
+    }
 
     function initMap() {
       if (map) return;
@@ -308,9 +394,9 @@
         .then(function(geojson) {
           geoJsonLayer = L.geoJSON(geojson, {
             style: function(feature) {
-              var dpto = (feature.properties && feature.properties.DPTO) ? String(feature.properties.DPTO) : '';
-              var selected = selectedDeptCodes.some(function(c) { return normCode(c) === dpto; });
-              var idx = selectedDeptCodes.findIndex(function(c) { return normCode(c) === dpto; });
+              var dptoNorm = normCode(getGeoDeptCode(feature));
+              var selected = selectedDeptCodes.some(function(c) { return apiCodeToGeoCode(c) === dptoNorm; });
+              var idx = selectedDeptCodes.findIndex(function(c) { return apiCodeToGeoCode(c) === dptoNorm; });
               return {
                 fillColor: selected ? (COLORS[idx % COLORS.length]) : '#e5e7eb',
                 fillOpacity: selected ? 0.6 : 0.4,
@@ -319,8 +405,9 @@
               };
             },
             onEachFeature: function(feature, layer) {
-              var name = (feature.properties && feature.properties.NOMBRE_DPT) ? feature.properties.NOMBRE_DPT : '';
-              if (name) layer.bindTooltip(name, { permanent: false, direction: 'top' });
+              var p = feature.properties || {};
+              var name = p.NOMBRE_DPT != null ? p.NOMBRE_DPT : (p.nombre != null ? p.nombre : (p.NOMBRE != null ? p.NOMBRE : ''));
+              if (name) layer.bindTooltip(String(name).trim(), { permanent: false, direction: 'top' });
             },
           }).addTo(map);
           updateMapStyle();
@@ -341,9 +428,9 @@
       geoJsonLayer.eachLayer(function(layer) {
         var feature = layer.feature;
         if (!feature || !feature.properties) return;
-        var dpto = String(feature.properties.DPTO || '');
-        var selected = selectedDeptCodes.some(function(c) { return normCode(c) === dpto; });
-        var idx = selectedDeptCodes.findIndex(function(c) { return normCode(c) === dpto; });
+        var dptoNorm = normCode(getGeoDeptCode(feature));
+        var selected = selectedDeptCodes.some(function(c) { return apiCodeToGeoCode(c) === dptoNorm; });
+        var idx = selectedDeptCodes.findIndex(function(c) { return apiCodeToGeoCode(c) === dptoNorm; });
         layer.setStyle({
           fillColor: selected ? (COLORS[idx % COLORS.length]) : '#e5e7eb',
           fillOpacity: selected ? 0.6 : 0.4,
@@ -524,6 +611,8 @@
       loadingEl.innerHTML = '<div class="loading-inline"><div class="spinner"></div><span>Cargando indicadores…</span></div>';
       var params = 'departments=' + encodeURIComponent(uniqueDeptCodes(selectedDeptCodes).join(','));
       if (currentYear) params += '&year=' + currentYear;
+      var corpEl = document.getElementById('filterCorporacion');
+      if (corpEl && corpEl.value) params += '&corporation=' + encodeURIComponent(corpEl.value);
       fetch(API + '/api/congreso-report/teradata-indicators?' + params)
         .then(function(res) { if (!res.ok) throw new Error(res.statusText); return res.json(); })
         .then(function(data) {
@@ -731,6 +820,8 @@
       if (container) container.innerHTML = '';
       if (loadingEl) { loadingEl.style.display = 'block'; loadingEl.innerHTML = '<div class="loading-inline"><div class="spinner"></div><span>Cargando resultados…</span></div>'; }
       var params = 'year=' + (currentYear || 2022) + '&departments=' + encodeURIComponent(uniqueDeptCodes(selectedDeptCodes).join(','));
+      var corp = (document.getElementById('filterCorporacion') && document.getElementById('filterCorporacion').value) ? document.getElementById('filterCorporacion').value : '';
+      if (corp) params += '&corporation=' + encodeURIComponent(corp);
       fetch(API + '/api/congreso-report/summary?' + params)
         .then(function(res) { if (!res.ok) throw new Error(res.statusText); return res.json(); })
         .then(function(data) {
@@ -794,7 +885,10 @@
       loading.innerHTML = '';
       if (!selectedDeptCodes.length) { loading.innerHTML = '<span class="empty-state" style="padding:0.5rem 0">Selecciona departamentos para ver la tendencia.</span>'; return; }
       loading.innerHTML = '<div class="loading-inline"><div class="spinner"></div><span>Cargando tendencia…</span></div>';
-      fetch(API + '/api/congreso-report/trend?departments=' + encodeURIComponent(uniqueDeptCodes(selectedDeptCodes).join(',')))
+      var trendParams = 'departments=' + encodeURIComponent(uniqueDeptCodes(selectedDeptCodes).join(','));
+      var corpEl = document.getElementById('filterCorporacion');
+      if (corpEl && corpEl.value) trendParams += '&corporation=' + encodeURIComponent(corpEl.value);
+      fetch(API + '/api/congreso-report/trend?' + trendParams)
         .then(function(res) { if (!res.ok) throw new Error(res.statusText); return res.json(); })
         .then(function(data) {
           loading.innerHTML = '';
@@ -859,9 +953,14 @@
         })
         .catch(function() { buildYearFilters([2014, 2018, 2022]); });
 
-      updateTitle();
-      loadSummary();
-      loadTrend();
+      loadCorporations().then(function() {
+        updateTitle();
+        loadSummary();
+        loadTrend();
+      });
+
+      var corpSel = document.getElementById('filterCorporacion');
+      if (corpSel) corpSel.addEventListener('change', function() { loadSummary(); loadTrend(); loadTeradataIndicators(); });
     }
     init();
   </script>
