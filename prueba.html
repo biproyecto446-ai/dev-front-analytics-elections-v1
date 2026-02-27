@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Análisis Electoral - Datos de base de datos</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --surface2: #f9fafb;
+      --border: #e5e7eb;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #3b82f6;
+      --accent-light: #e0f2fe;
+      --accent2: #60a5fa;
+      --success: #22c55e;
+      --success-bg: #dcfce7;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+    .container { max-width: 1920px; margin: 0 auto; padding: 1.5rem 1.75rem; }
+    .header-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; background: var(--surface); border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid var(--border); }
+    .header-bar-title { flex-shrink: 0; }
+    .header-bar-title h1 { margin: 0; font-size: 1.35rem; font-weight: 700; color: var(--text); letter-spacing: -0.02em; line-height: 1.25; }
+    .header-bar-title .subtitle { color: var(--muted); font-size: 0.85rem; margin-top: 0.35rem; font-weight: 500; }
+    .header-bar-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.25rem; }
+    .subtitle-with-status { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .status-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+    }
+    .status-dot.ok { background: var(--success, #22c55e); }
+    .status-dot.error { background: #f43f5e; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    /* ——— Filtros (en misma línea que título) ——— */
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1rem; margin: 0; padding: 0; background: transparent; border-radius: 0; border: none; overflow: visible; box-shadow: none; }
+    .filters .filter-group { padding: 0 0.75rem; border-right: 1px solid var(--border); border-radius: 0; }
+    .filters .filter-group:first-child { padding-left: 0; }
+    .filters .filter-group:last-of-type { border-right: none; padding-right: 0; }
+    @media (max-width: 900px) { .header-bar { flex-direction: column; align-items: stretch; } .filters .filter-group { border-right: none; border-bottom: none; padding: 0.5rem 0; border-bottom: 1px solid var(--border); flex-direction: column; align-items: stretch; } .filters .filter-group:last-of-type { border-bottom: none; } .filters .filter-group label { margin-bottom: 0.35rem; } }
+    .filters .filter-group { display: flex; flex-direction: row; align-items: center; gap: 0.5rem; }
+    .filters .filter-group label { display: block; font-size: 0.7rem; font-weight: 600; color: var(--muted); margin-bottom: 0; margin-right: 0; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+    .filters .filter-group-inner { display: flex; flex-direction: column; gap: 0.15rem; }
+    .filters .filter-group .filter-control { min-height: 40px; display: flex; align-items: center; }
+    .filters select { padding: 0.5rem 1rem; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 0.9rem; min-width: 260px; line-height: 1.5; cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+    .filters select option { padding: 0.35rem 0; }
+    .filters select:hover { border-color: var(--muted); }
+    .filters select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); outline: none; }
+    .filters .year-filters { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .filters .year-filters button { padding: 0.55rem 1.1rem; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; cursor: pointer; font-size: 0.9rem; font-weight: 500; transition: background 0.2s, border-color 0.2s, color 0.2s; }
+    .filters .year-filters button:hover { background: var(--surface2); border-color: var(--muted); color: var(--text); }
+    .filters .year-filters button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .filter-hint { font-size: 0.68rem; color: var(--muted); margin-top: 0; }
+    /* Multi-select tipo combobox con búsqueda */
+    .multiselect-wrap { position: relative; min-width: 200px; max-width: 280px; }
+    .multiselect-trigger { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 40px; padding: 0.5rem 0.85rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+    .multiselect-trigger:hover { border-color: var(--muted); }
+    .multiselect-wrap.open .multiselect-trigger { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+    .multiselect-trigger-text { flex: 1; text-align: left; font-size: 0.9rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .multiselect-trigger-text.placeholder { color: var(--muted); }
+    .multiselect-trigger-arrow { flex-shrink: 0; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--muted); transition: transform 0.2s; }
+    .multiselect-wrap.open .multiselect-trigger-arrow { transform: rotate(180deg); }
+    .multiselect-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000; max-height: 280px; display: none; flex-direction: column; overflow: hidden; }
+    .multiselect-wrap.open .multiselect-dropdown { display: flex; }
+    .multiselect-search { width: 100%; padding: 0.6rem 1rem; padding-right: 2rem; border: none; border-bottom: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 0.9rem; outline: none; }
+    .multiselect-search::placeholder { color: var(--muted); }
+    .multiselect-list { overflow-y: auto; max-height: 220px; padding: 0.35rem 0; }
+    .multiselect-option { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 1rem; cursor: pointer; font-size: 0.9rem; color: var(--text); transition: background 0.15s; }
+    .multiselect-option:hover { background: var(--surface2); }
+    .multiselect-option .check { flex-shrink: 0; width: 18px; height: 18px; border: 2px solid var(--border); border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+    .multiselect-option.selected .check { background: var(--accent); border-color: var(--accent); }
+    .multiselect-option .check svg { width: 12px; height: 12px; stroke: #fff; }
+    .multiselect-option .label { flex: 1; }
+    .multiselect-option.no-match { display: none; }
+    .main-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.5rem; margin-bottom: 1.75rem; align-items: start; }
+    @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .panel-title { padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.95rem; color: var(--text); letter-spacing: 0.01em; }
+    .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--border); }
+    .panel-title-row .panel-title { padding: 0; margin: 0; border: none; flex: 1; min-width: 0; }
+    .panel-title-filter select {
+      padding: 0.4rem 0.75rem; font-size: 0.85rem; min-width: 140px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+      cursor: pointer;
+    }
+    .panel-title-filter select:hover { border-color: var(--muted); }
+    .panel-title-filter select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+    .panel-body { padding: 1.15rem 1.25rem; }
+    .right-column { display: flex; flex-direction: column; gap: 1.25rem; }
+    .map-container-wrap { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    #mapContainer { height: 360px; width: 100%; background: var(--surface2); }
+    .map-badge { position: absolute; top: 10px; left: 10px; z-index: 1000; padding: 0.4rem 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font-size: 0.8rem; color: var(--muted); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .map-legend { position: absolute; bottom: 10px; left: 10px; z-index: 1000; display: flex; gap: 0.5rem; flex-wrap: wrap; padding: 0.4rem 0.6rem; background: rgba(255,255,255,0.95); border: 1px solid var(--border); border-radius: 6px; font-size: 0.75rem; color: var(--muted); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .map-legend span { display: flex; align-items: center; gap: 0.35rem; }
+    .map-legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .left-column { display: flex; flex-direction: column; gap: 1.25rem; }
+    .panels-row { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+    .panels-row .panel { flex: 1; min-width: 280px; }
+    .chart-wrap { height: 240px; min-height: 200px; }
+    .chart-wrap-teradata { height: 340px; min-height: 280px; }
+    .teradata-group-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .teradata-group-btn {
+      padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); font-size: 0.85rem; cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+    }
+    .teradata-group-btn:hover { background: var(--surface2); border-color: var(--accent); }
+    .teradata-group-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .chart-wrap-top5 { height: 240px; }
+    .top5-by-dept-container { display: flex; flex-direction: column; gap: 1.25rem; }
+    .top5-dept-block {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+      border-left: 4px solid var(--dept-accent, var(--accent));
+      transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    .top5-dept-block:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.05); }
+    .top5-dept-block.top5-dept-block--0 { --dept-accent: #3b82f6; }
+    .top5-dept-block.top5-dept-block--1 { --dept-accent: #22c55e; }
+    .top5-dept-block.top5-dept-block--2 { --dept-accent: #6366f1; }
+    .top5-dept-title {
+      display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;
+      font-size: 0.85rem; font-weight: 700; color: var(--text); letter-spacing: 0.02em;
+    }
+    .top5-dept-title::before {
+      content: ''; width: 10px; height: 10px; border-radius: 50%;
+      background: var(--dept-accent, var(--accent)); flex-shrink: 0;
+    }
+    .top5-dept-winner {
+      padding: 0.75rem 0 0.25rem; border-radius: 8px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.02) 0%, transparent 100%);
+    }
+    .top5-dept-winner .party-name { font-size: 0.9rem; font-weight: 600; color: var(--text); line-height: 1.35; margin-bottom: 0.3rem; }
+    .top5-dept-winner .vote-count { font-size: 0.85rem; color: var(--accent); font-weight: 600; }
+    .loading-data { color: var(--muted); font-size: 0.875rem; padding: 0.6rem 0; line-height: 1.4; }
+    .error-msg { color: #f43f5e; font-size: 0.85rem; }
+    .dane-section .panel-title { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .dane-tabs { display: flex; gap: 0.25rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .dane-tabs button { padding: 0.4rem 0.75rem; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    .dane-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .section-data { margin-top: 1.5rem; }
+    .section-data h2 { font-size: 1.1rem; margin: 0 0 1rem 0; color: var(--text); font-weight: 600; }
+    .pagination-bar { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 0.75rem; }
+    .pagination-bar button, .pagination-bar select { padding: 0.4rem 0.75rem; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .pagination-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pagination-bar .page-info { color: var(--muted); font-size: 0.85rem; }
+    .table-wrap { overflow-x: auto; max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .table-wrap table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .table-wrap th { position: sticky; top: 0; background: var(--surface2); color: var(--muted); padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; font-weight: 600; }
+    .table-wrap td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); color: var(--text); }
+    .table-wrap tr:hover td { background: var(--accent-light); }
+    .empty-cell { color: var(--muted); font-style: italic; }
+    .stats-row { display: flex; gap: 1rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .stat-card .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
+    .stat-card .value { font-size: 1.25rem; font-weight: 700; color: var(--accent); }
+    /* UX: loading, transitions, focus */
+    .spinner { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-inline { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.9rem; }
+    .panel-body.loading { min-height: 100px; }
+    .fade-in { animation: fadeIn 0.25s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .skeleton { background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%); background-size: 200% 100%; animation: skeleton 1.2s ease-in-out infinite; border-radius: 4px; }
+    @keyframes skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .skeleton-line { height: 0.85rem; margin-bottom: 0.5rem; }
+    .skeleton-line.short { width: 60%; }
+    button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .btn-retry { margin-top: 0.5rem; padding: 0.5rem 1rem; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
+    .btn-retry:hover { filter: brightness(1.1); }
+    .empty-state { text-align: center; padding: 1.5rem; color: var(--muted); font-size: 0.9rem; }
+    .empty-state .icon { font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.7; }
+    .filter-hint { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+    .map-loading-overlay { position: absolute; inset: 0; background: var(--surface2); display: flex; align-items: center; justify-content: center; z-index: 500; transition: opacity 0.3s; }
+    .map-loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .skip-link { position: absolute; left: -9999px; z-index: 9999; padding: 0.5rem 1rem; background: var(--accent); color: #fff; border-radius: 6px; }
+    .skip-link:focus { left: 1rem; top: 1rem; }
+    .btn-retry { background: var(--accent) !important; color: #fff !important; }
+    @media (prefers-reduced-motion: reduce) {
+      .fade-in { animation: none; }
+      .spinner { animation-duration: 1.5s; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#filters" class="skip-link">Ir a filtros</a>
+  <div class="container">
+    <header class="header-bar" role="banner">
+      <div class="header-bar-title">
+        <h1 id="reportTitle">Análisis Electoral</h1>
+        <p class="subtitle subtitle-with-status" id="reportSubtitle">
+          <a href="top-partidos.html" style="color: var(--accent); text-decoration: none; font-weight: 500;">Top 7 partidos</a>
+          <span style="color: var(--border); margin: 0 0.5rem;">|</span>
+          <a href="index.html" style="color: var(--accent); text-decoration: none; font-weight: 500;">Análisis Teradata y DANE</a>
+          <span style="color: var(--border); margin: 0 0.5rem;">|</span>
+          <span id="apiStatusDot" class="status-dot" aria-hidden="true"></span>
+          <span id="reportSubtitleText">Análisis Histórico de Congreso</span>
+          <span id="apiStatusA11y" class="sr-only" role="status" aria-live="polite"></span>
+        </p>
+      </div>
+      <section class="filters" id="filters" aria-label="Filtros del reporte">
+      <div class="filter-group">
+        <label for="deptSearch">Departamentos</label>
+        <div class="filter-group-inner">
+          <div class="filter-control">
+            <div class="multiselect-wrap" id="deptMultiselect">
+              <button type="button" class="multiselect-trigger" id="deptTrigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="deptTriggerText">
+                <span class="multiselect-trigger-text placeholder" id="deptTriggerText">Selecciona departamentos</span>
+                <span class="multiselect-trigger-arrow" aria-hidden="true"></span>
+              </button>
+              <div class="multiselect-dropdown" role="listbox" id="deptDropdown">
+                <input type="text" class="multiselect-search" id="deptSearch" placeholder="Buscar departamento…" autocomplete="off" aria-label="Buscar departamento">
+                <div class="multiselect-list" id="deptList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="filter-group">
+        <label id="yearLabel">Año</label>
+        <div class="year-filters" id="yearFilters" role="group" aria-labelledby="yearLabel"></div>
+      </div>
+    </section>
+    </header>
+
+    <div class="main-grid">
+      <div class="left-column">
+        <div class="panel map-container-wrap">
+          <div class="map-loading-overlay" id="mapLoadingOverlay">
+            <div class="loading-inline"><div class="spinner"></div><span>Cargando mapa…</span></div>
+          </div>
+          <span class="map-badge" id="mapBadge">Mapa Colombia</span>
+          <div id="mapContainer"></div>
+          <div class="map-legend" id="mapLegend"></div>
+        </div>
+        <div class="panels-row">
+          <div class="panel">
+            <div class="panel-title-row panel-title-row-corp">
+              <span class="panel-title">Partido con más votación por departamento</span>
+              <div class="panel-title-filter">
+                <label for="filterCorporacion" class="sr-only">Corporación</label>
+                <select id="filterCorporacion" aria-label="Filtrar por corporación">
+                  <option value="">Todas</option>
+                </select>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div id="top5ByDeptContainer" class="top5-by-dept-container"></div>
+              <p class="loading-data" id="top5ByDeptLoading">Selecciona departamentos y año.</p>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Tendencia de votos por año y departamento</div>
+            <div class="panel-body">
+              <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+              <p class="loading-data" id="trendLoading"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="right-column">
+        <div class="panel dane-section" id="seccion-dane">
+          <div class="panel-title">Indicadores Socioeconómicos DANE</div>
+          <div class="panel-body">
+            <div class="chart-wrap" style="height: 260px;"><canvas id="daneRadarChart"></canvas></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Indicadores Teradata</div>
+          <div class="panel-body">
+            <div class="teradata-group-buttons" id="teradataGroupButtons"></div>
+            <div class="chart-wrap chart-wrap-teradata"><canvas id="teradataChart"></canvas></div>
+            <p class="loading-data" id="teradataLoading">Selecciona departamentos para ver indicadores.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const API = (window.__APP_CONFIG__ && window.__APP_CONFIG__.apiBaseUrl) || 'http://localhost:3001';
+    const MAX_DEPTS = 3;
+    const COLORS = ['#3b82f6', '#22c55e', '#6366f1', '#0ea5e9', '#14b8a6'];
+    const GEOJSON_DEPTOS = 'https://raw.githubusercontent.com/santiblanko/colombia.geojson/master/depto.json';
+    let currentYear = null;
+    let selectedDeptCodes = [];
+    let allDepartments = [];
+    let allYears = [];
+    var nameByCode = {};
+    let trendChartInstance = null;
+    let daneRadarChartInstance = null;
+    let teradataChartInstance = null;
+    var teradataFullData = null;
+    var selectedTeradataGroupId = null;
+    let map = null;
+    let geoJsonLayer = null;
+
+    /**
+     * Mapeo código departamento (tu carga/API) → código GeoJSON (mapa DANE estándar).
+     * Clave: código que envía tu API/BD (2 dígitos normalizados).
+     * Valor: código del GeoJSON (depto.json, estándar DANE).
+     */
+    var DEPT_CODE_MAP = {
+      '00': null,      // DEPARTAMENTO (genérico, no pinta en mapa)
+      '01': '05',      // ANTIOQUIA
+      '03': '08',      // ATLANTICO
+      '05': '13',      // BOLIVAR
+      '07': '15',      // BOYACA
+      '09': '17',      // CALDAS
+      '11': '19',      // CAUCA
+      '12': '20',      // CESAR
+      '13': '23',      // CORDOBA
+      '15': '25',      // CUNDINAMARCA
+      '16': '11',      // BOGOTA D.C.
+      '17': '27',      // CHOCO
+      '19': '41',      // HUILA
+      '21': '47',      // MAGDALENA
+      '23': '52',      // NARIÑO
+      '24': '66',      // RISARALDA
+      '25': '54',      // NORTE DE SAN (Norte de Santander)
+      '26': '63',      // QUINDIO
+      '27': '68',      // SANTANDER
+      '28': '70',      // SUCRE
+      '29': '73',      // TOLIMA
+      '31': '76',      // VALLE (Valle del Cauca)
+      '40': '81',      // ARAUCA
+      '44': '18',      // CAQUETA
+      '46': '85',      // CASANARE
+      '48': '44',      // LA GUAJIRA
+      '50': '94',      // GUAINIA
+      '52': '50',      // META
+      '54': '95',      // GUAVIARE
+      '56': '88',      // SAN ANDRES
+      '60': '91',      // AMAZONAS
+      '64': '86',      // PUTUMAYO
+      '68': '97',      // VAUPES
+      '72': '99',      // VICHADA
+      '88': '88',     // CONSULADOS (se pinta como San Andrés en mapa; si no debe pintarse, usar null)
+    };
+
+    /** Normaliza código de departamento: quita ceros a la izquierda y pad a 2 dígitos (ej: "011"→"11", "5"→"05"). Códigos de 5 dígitos se dejan como están para poder mapearlos. */
+    function normCode(c) {
+      if (c == null || c === '') return '';
+      var s = String(c).trim().replace(/^0+/, '') || '0';
+      if (s.length <= 2) return s.padStart(2, '0');
+      return s;
+    }
+
+    /** Convierte código de la API/BD al código usado en el GeoJSON del mapa (usa DEPT_CODE_MAP). Si el mapa devuelve null, no pinta (retorna ''). */
+    function apiCodeToGeoCode(apiCode) {
+      var n = normCode(apiCode);
+      if (DEPT_CODE_MAP.hasOwnProperty(n)) {
+        var geo = DEPT_CODE_MAP[n];
+        if (geo == null) return '';
+        return normCode(String(geo));
+      }
+      if (n.length > 2) return n.substring(0, 2).padStart(2, '0');
+      return n;
+    }
+
+    /** Obtiene el código de departamento de un feature del GeoJSON (soporta DPTO, COD_DPTO, codigo_departamento). */
+    function getGeoDeptCode(feature) {
+      if (!feature || !feature.properties) return '';
+      var p = feature.properties;
+      var code = p.DPTO != null ? p.DPTO : (p.COD_DPTO != null ? p.COD_DPTO : (p.codigo_departamento != null ? p.codigo_departamento : ''));
+      return String(code).trim();
+    }
+
+    function initMap() {
+      if (map) return;
+      map = L.map('mapContainer', {
+        attributionControl: false,
+        zoomControl: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        touchZoom: false,
+        boxZoom: false,
+        minZoom: 5,
+        maxZoom: 5,
+      }).setView([4.57, -74.29], 5);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+      document.getElementById('mapBadge').textContent = currentYear ? 'Senado ' + currentYear : 'Mapa Colombia';
+      fetch(GEOJSON_DEPTOS)
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(new Error('GeoJSON no disponible')); })
+        .then(function(geojson) {
+          geoJsonLayer = L.geoJSON(geojson, {
+            style: function(feature) {
+              var dptoNorm = normCode(getGeoDeptCode(feature));
+              var selected = selectedDeptCodes.some(function(c) { return apiCodeToGeoCode(c) === dptoNorm; });
+              var idx = selectedDeptCodes.findIndex(function(c) { return apiCodeToGeoCode(c) === dptoNorm; });
+              return {
+                fillColor: selected ? (COLORS[idx % COLORS.length]) : '#e5e7eb',
+                fillOpacity: selected ? 0.6 : 0.4,
+                color: selected ? '#3b82f6' : '#d1d5db',
+                weight: selected ? 1.5 : 0.8,
+              };
+            },
+            onEachFeature: function(feature, layer) {
+              var p = feature.properties || {};
+              var name = p.NOMBRE_DPT != null ? p.NOMBRE_DPT : (p.nombre != null ? p.nombre : (p.NOMBRE != null ? p.NOMBRE : ''));
+              if (name) layer.bindTooltip(String(name).trim(), { permanent: false, direction: 'top' });
+            },
+          }).addTo(map);
+          updateMapStyle();
+          updateMapLegend();
+          document.getElementById('mapBadge').textContent = currentYear ? 'Senado ' + currentYear : 'Mapa Colombia';
+          var overlay = document.getElementById('mapLoadingOverlay');
+          if (overlay) { overlay.classList.add('hidden'); }
+        })
+        .catch(function() {
+          document.getElementById('mapBadge').textContent = 'Mapa no disponible';
+          var overlay = document.getElementById('mapLoadingOverlay');
+          if (overlay) { overlay.classList.add('hidden'); overlay.innerHTML = '<span class="error-msg">No se pudo cargar el mapa. Comprueba tu conexión.</span>'; }
+        });
+    }
+
+    function updateMapStyle() {
+      if (!geoJsonLayer) return;
+      geoJsonLayer.eachLayer(function(layer) {
+        var feature = layer.feature;
+        if (!feature || !feature.properties) return;
+        var dptoNorm = normCode(getGeoDeptCode(feature));
+        var selected = selectedDeptCodes.some(function(c) { return apiCodeToGeoCode(c) === dptoNorm; });
+        var idx = selectedDeptCodes.findIndex(function(c) { return apiCodeToGeoCode(c) === dptoNorm; });
+        layer.setStyle({
+          fillColor: selected ? (COLORS[idx % COLORS.length]) : '#e5e7eb',
+          fillOpacity: selected ? 0.6 : 0.4,
+          color: selected ? '#3b82f6' : '#d1d5db',
+          weight: selected ? 1.5 : 0.8,
+        });
+      });
+    }
+
+    function updateMapLegend() {
+      var el = document.getElementById('mapLegend');
+      var uniq = uniqueDeptCodes(selectedDeptCodes);
+      if (!uniq.length) { el.innerHTML = ''; return; }
+      el.innerHTML = uniq.map(function(c, i) {
+        return '<span><span class="dot" style="background:' + COLORS[i % COLORS.length] + '"></span> ' + (nameByCode[c] || c) + '</span>';
+      }).join('');
+    }
+
+
+    function updateDaneCharts() {
+      var labels = ['Analfabetismo', 'Barreras servicios', 'Desempleo larga duración', 'Inadecuada eliminación', 'Material inadecuado', 'Rezago escolar', 'Sin aseguramiento', 'Trabajo informal'];
+      var uniq = uniqueDeptCodes(selectedDeptCodes);
+      var depts = uniq.slice(0, MAX_DEPTS).map(function(c) { return nameByCode[c] || c; });
+      var radarMockData = [
+        [65, 55, 38, 28, 22, 18, 45, 55],
+        [72, 62, 42, 32, 26, 24, 52, 60],
+        [58, 48, 35, 25, 20, 15, 42, 50],
+      ];
+      var radarCanvas = document.getElementById('daneRadarChart');
+      if (!radarCanvas) return;
+      var ctxRadar = radarCanvas.getContext('2d');
+      if (daneRadarChartInstance) daneRadarChartInstance.destroy();
+      var radarSets = depts.map(function(name, i) {
+        var c = COLORS[i % COLORS.length];
+        return { label: name, data: radarMockData[i] || radarMockData[0], borderColor: c, backgroundColor: c + '33', fill: true };
+      });
+      if (!radarSets.length) radarSets = [{ label: 'Selecciona departamentos', data: labels.slice(0, 8).map(function() { return 0; }), borderColor: '#9ca3af', backgroundColor: 'rgba(156,163,175,0.2)', fill: true }];
+      daneRadarChartInstance = new Chart(ctxRadar, {
+        type: 'radar',
+        data: {
+          labels: labels.slice(0, 8),
+          datasets: radarSets,
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: 10 },
+          scales: { r: { max: 100, ticks: { color: '#6b7280', font: { size: 10 } }, pointLabels: { color: '#4b5563', font: { size: 11 } } } },
+          plugins: { legend: { position: 'bottom', labels: { color: '#6b7280', font: { size: 12 }, padding: 12 } } },
+        },
+      });
+    }
+
+    var TERADATA_CHART_TYPES = ['bar', 'radar', 'line'];
+
+    function renderTeradataChart() {
+      var canvas = document.getElementById('teradataChart');
+      var loadingEl = document.getElementById('teradataLoading');
+      if (!canvas || !teradataFullData) return;
+      var labels = teradataFullData.labels || [];
+      var series = teradataFullData.series || [];
+      var groups = teradataFullData.groups || [];
+      var indices = null;
+      var chartType = 'bar';
+      var groupIndex = -1;
+      if (selectedTeradataGroupId) {
+        var g = groups.find(function(x) { return x.id === selectedTeradataGroupId; });
+        if (g && g.indicatorIndices && g.indicatorIndices.length) {
+          indices = g.indicatorIndices;
+          groupIndex = groups.indexOf(g);
+          chartType = TERADATA_CHART_TYPES[groupIndex % TERADATA_CHART_TYPES.length];
+        }
+      }
+      if (!indices) indices = labels.map(function(_, i) { return i; });
+      var maxIndicators = 12;
+      var sliceIndices = indices.length <= maxIndicators ? indices : indices.slice(0, maxIndicators);
+      var showLabels = sliceIndices.map(function(i) { return labels[i] || ''; });
+      var showSeries = series.map(function(s) {
+        return {
+          label: s.department || s.codigo_departamento,
+          data: sliceIndices.map(function(i) { return (s.data || [])[i]; }),
+        };
+      });
+      var allValues = showSeries.reduce(function(acc, s) { return acc.concat(s.data || []); }, []);
+      var dataMax = allValues.length ? Math.max.apply(null, allValues) : 100;
+      var radarMax = Math.max(100, Math.ceil(dataMax * 1.15));
+      if (teradataChartInstance) teradataChartInstance.destroy();
+      var isRadar = chartType === 'radar';
+      teradataChartInstance = new Chart(canvas.getContext('2d'), {
+        type: chartType,
+        data: {
+          labels: showLabels,
+          datasets: showSeries.map(function(s, i) {
+            var opt = {
+              label: s.label || 'Depto ' + (i + 1),
+              data: s.data || [],
+              backgroundColor: COLORS[i % COLORS.length],
+              borderColor: COLORS[i % COLORS.length],
+              borderWidth: 1,
+            };
+            if (isRadar) opt.fill = false;
+            if (chartType === 'bar') { opt.barPercentage = 0.75; opt.categoryPercentage = 0.85; }
+            return opt;
+          }),
+        },
+        options: isRadar
+          ? {
+              responsive: true,
+              maintainAspectRatio: false,
+              layout: { padding: { top: 16, right: 24, bottom: 16, left: 24 } },
+              scales: {
+                r: {
+                  min: 0,
+                  max: radarMax,
+                  ticks: { color: '#6b7280', font: { size: 10 }, backdropColor: 'transparent' },
+                  pointLabels: { color: '#374151', font: { size: 11 }, padding: 12 },
+                },
+              },
+              plugins: {
+                legend: { position: 'bottom', labels: { color: '#6b7280', font: { size: 12 }, padding: 12 } },
+                tooltip: { bodyFont: { size: 12 }, titleFont: { size: 11 }, callbacks: { title: function(ctx) { var i = ctx[0] && ctx[0].dataIndex; return showLabels[i] != null ? showLabels[i] : ''; } } },
+              },
+            }
+          : chartType === 'line'
+          ? {
+              responsive: true,
+              maintainAspectRatio: false,
+              layout: { padding: { left: 12, right: 16, top: 12, bottom: 60 } },
+              plugins: {
+                legend: { position: 'bottom', labels: { color: '#6b7280', font: { size: 12 }, padding: 14 } },
+                tooltip: { bodyFont: { size: 12 }, titleFont: { size: 11 }, callbacks: { title: function(ctx) { var i = ctx[0] && ctx[0].dataIndex; return showLabels[i] != null ? showLabels[i] : ''; } } },
+              },
+              scales: {
+                x: {
+                  ticks: { color: '#374151', font: { size: 10 }, maxRotation: 50, minRotation: 40, autoSkip: false, padding: 8,
+                    callback: function(_, i) { return showLabels[i] != null && showLabels[i] !== '' ? showLabels[i] : 'Ind. ' + (i + 1); } },
+                },
+                y: { min: 0, ticks: { color: '#6b7280', font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+              },
+            }
+          : {
+              indexAxis: 'y',
+              responsive: true,
+              maintainAspectRatio: false,
+              layout: { padding: { left: 240, right: 20, top: 12, bottom: 12 } },
+              plugins: {
+                legend: { position: 'bottom', labels: { color: '#6b7280', font: { size: 12 }, padding: 14 } },
+                tooltip: { bodyFont: { size: 12 }, titleFont: { size: 11 }, callbacks: { title: function(ctx) { var i = ctx[0] && ctx[0].dataIndex; return showLabels[i] != null ? showLabels[i] : ''; } } },
+              },
+              scales: {
+                x: { min: 0, ticks: { color: '#6b7280', font: { size: 11 }, maxTicksLimit: 8 }, grid: { color: 'rgba(0,0,0,0.06)' } },
+                y: {
+                  ticks: { color: '#374151', font: { size: 11 }, autoSkip: false, padding: 8, crossAlign: 'far',
+                    callback: function(_, i) { return showLabels[i] != null && showLabels[i] !== '' ? showLabels[i] : 'Indicador ' + (i + 1); },
+                  },
+                  grid: { display: false },
+                },
+              },
+            },
+      });
+    }
+
+    function loadTeradataIndicators() {
+      var canvas = document.getElementById('teradataChart');
+      var loadingEl = document.getElementById('teradataLoading');
+      var btnContainer = document.getElementById('teradataGroupButtons');
+      if (!canvas || !loadingEl) return;
+      if (btnContainer) btnContainer.innerHTML = '';
+      teradataFullData = null;
+      selectedTeradataGroupId = null;
+      if (!selectedDeptCodes.length) {
+        loadingEl.style.display = 'block';
+        loadingEl.textContent = 'Selecciona departamentos para ver indicadores.';
+        if (teradataChartInstance) { teradataChartInstance.destroy(); teradataChartInstance = null; }
+        return;
+      }
+      loadingEl.style.display = 'block';
+      loadingEl.innerHTML = '<div class="loading-inline"><div class="spinner"></div><span>Cargando indicadores…</span></div>';
+      var params = 'departments=' + encodeURIComponent(uniqueDeptCodes(selectedDeptCodes).join(','));
+      if (currentYear) params += '&year=' + currentYear;
+      var corpEl = document.getElementById('filterCorporacion');
+      if (corpEl && corpEl.value) params += '&corporation=' + encodeURIComponent(corpEl.value);
+      fetch(API + '/api/congreso-report/teradata-indicators?' + params)
+        .then(function(res) { if (!res.ok) throw new Error(res.statusText); return res.json(); })
+        .then(function(data) {
+          loadingEl.style.display = 'none';
+          var labels = data.labels || [];
+          var series = data.series || [];
+          var groups = data.groups || [];
+          if (!labels.length || !series.length) {
+            loadingEl.style.display = 'block';
+            loadingEl.textContent = 'Sin datos de indicadores Teradata para los departamentos seleccionados.';
+            return;
+          }
+          teradataFullData = { labels: labels, series: series, groups: groups };
+          selectedTeradataGroupId = groups.length ? groups[0].id : null;
+          if (btnContainer) {
+            groups.forEach(function(grp, idx) {
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'teradata-group-btn' + (idx === 0 ? ' active' : '');
+              btn.textContent = grp.label || grp.id;
+              if (grp.fullLabel) btn.title = grp.fullLabel;
+              btn.setAttribute('data-group-id', grp.id);
+              btn.onclick = function() {
+                selectedTeradataGroupId = grp.id;
+                document.querySelectorAll('.teradata-group-btn').forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                renderTeradataChart();
+              };
+              btnContainer.appendChild(btn);
+            });
+          }
+          renderTeradataChart();
+        })
+        .catch(function(e) {
+          loadingEl.style.display = 'block';
+          loadingEl.innerHTML = '<span class="error-msg">No se pudieron cargar los indicadores.</span> <button type="button" class="btn-retry" id="retryTeradata">Reintentar</button>';
+          var btn = document.getElementById('retryTeradata');
+          if (btn) btn.onclick = function() { loadTeradataIndicators(); };
+          if (teradataChartInstance) { teradataChartInstance.destroy(); teradataChartInstance = null; }
+        });
+    }
+
+    function setStatus(ok, msg) {
+      var dot = document.getElementById('apiStatusDot');
+      var a11y = document.getElementById('apiStatusA11y');
+      if (dot) dot.className = 'status-dot ' + (ok ? 'ok' : 'error');
+      if (a11y) a11y.textContent = ok ? 'Conectado a la API' : (msg || 'Error de conexión');
+    }
+
+    function uniqueDeptCodes(codes) {
+      return codes.filter(function(c, i, a) { return a.indexOf(c) === i; });
+    }
+    function normDeptCode(c) { return String(c).trim().replace(/^0+/, '') || '0'; }
+
+    function formatDeptLabel(codes) {
+      var uniq = uniqueDeptCodes(codes);
+      if (!uniq.length) return '—';
+      var names = uniq.map(function(c) { return nameByCode[c] || c; });
+      if (names.length === 1) return names[0];
+      if (names.length === 2) return names[0] + ' y ' + names[1];
+      return names.slice(0, -1).join(', ') + ' y ' + names[names.length - 1];
+    }
+
+    function updateTitle() {
+      var label = formatDeptLabel(selectedDeptCodes);
+      document.getElementById('reportTitle').textContent = 'Análisis Electoral' + (label !== '—' ? ' - ' + label : '');
+      var st = document.getElementById('reportSubtitleText');
+      if (st) st.textContent = 'Análisis Histórico de Congreso';
+      updateMapStyle();
+      updateMapLegend();
+      updateDaneCharts();
+      loadTeradataIndicators();
+      var badge = document.getElementById('mapBadge');
+      if (badge && badge.textContent !== 'Mapa no disponible') badge.textContent = currentYear ? 'Senado ' + currentYear : 'Mapa Colombia';
+    }
+
+    function updateDeptTriggerText() {
+      var triggerText = document.getElementById('deptTriggerText');
+      if (!triggerText) return;
+      var n = uniqueDeptCodes(selectedDeptCodes).length;
+      triggerText.textContent = 'Departamentos seleccionados ' + n + ' de ' + MAX_DEPTS;
+      if (n === 0) triggerText.classList.add('placeholder'); else triggerText.classList.remove('placeholder');
+    }
+
+    function renderDeptList(filter) {
+      var list = document.getElementById('deptList');
+      if (!list) return;
+      if (!allDepartments.length) {
+        list.innerHTML = '<div class="multiselect-empty" style="padding:1rem;color:var(--muted);font-size:0.9rem">No hay departamentos disponibles</div>';
+        return;
+      }
+      var q = (filter || '').toLowerCase().trim();
+      var optionsHtml = allDepartments.map(function(d) {
+        var code = d.codigo_departamento;
+        var name = d.nombre || '';
+        var selected = selectedDeptCodes.indexOf(code) >= 0;
+        var show = !q || name.toLowerCase().indexOf(q) >= 0;
+        return '<div class="multiselect-option' + (selected ? ' selected' : '') + (show ? '' : ' no-match') + '" data-code="' + escapeHtml(code) + '" role="option" aria-selected="' + selected + '">' +
+          '<span class="check">' + (selected ? '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6l3 3 5-6"/></svg>' : '') + '</span>' +
+          '<span class="label">' + escapeHtml(name) + '</span></div>';
+      }).join('');
+      var hasMatch = q ? allDepartments.some(function(d) { return (d.nombre || '').toLowerCase().indexOf(q) >= 0; }) : true;
+      list.innerHTML = optionsHtml + (q && !hasMatch ? '<div class="multiselect-empty" style="padding:1rem;color:var(--muted);font-size:0.9rem">Sin resultados</div>' : '');
+      list.querySelectorAll('.multiselect-option').forEach(function(opt) {
+        opt.onclick = function() {
+          var code = opt.dataset.code;
+          var idx = selectedDeptCodes.indexOf(code);
+          if (idx >= 0) {
+            selectedDeptCodes.splice(idx, 1);
+          } else if (selectedDeptCodes.length < MAX_DEPTS) {
+            selectedDeptCodes.push(code);
+          }
+          renderDeptList(document.getElementById('deptSearch').value);
+          updateDeptTriggerText();
+          updateTitle();
+          loadSummary();
+          loadTrend();
+        };
+      });
+    }
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      var div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function buildDeptSelect(departments) {
+      var raw = departments || [];
+      var seen = {};
+      allDepartments = raw.filter(function(d) {
+        var c = d.codigo_departamento;
+        if (seen[c]) return false;
+        seen[c] = true;
+        return true;
+      });
+      nameByCode = {};
+      allDepartments.forEach(function(d) { nameByCode[d.codigo_departamento] = d.nombre; });
+      var toSelect = selectedDeptCodes.filter(function(c) { return allDepartments.some(function(d) { return d.codigo_departamento === c; }); });
+      toSelect = toSelect.filter(function(c, i, a) { return a.indexOf(c) === i; });
+      selectedDeptCodes = toSelect.length ? toSelect.slice(0, MAX_DEPTS) : [];
+      selectedDeptCodes = uniqueDeptCodes(selectedDeptCodes).slice(0, MAX_DEPTS);
+
+      updateDeptTriggerText();
+      renderDeptList('');
+
+      var wrap = document.getElementById('deptMultiselect');
+      var trigger = document.getElementById('deptTrigger');
+      var search = document.getElementById('deptSearch');
+      if (!wrap || !trigger) return;
+
+      trigger.onclick = function(e) {
+        e.stopPropagation();
+        wrap.classList.toggle('open');
+        trigger.setAttribute('aria-expanded', wrap.classList.contains('open'));
+        if (wrap.classList.contains('open')) {
+          search.value = '';
+          renderDeptList('');
+          search.focus();
+        }
+      };
+
+      search.oninput = function() { renderDeptList(search.value); };
+      search.onclick = function(e) { e.stopPropagation(); };
+
+      if (!wrap._closeBound) {
+        wrap._closeBound = true;
+        document.addEventListener('click', function closeDept(e) {
+          if (wrap && !wrap.contains(e.target)) {
+            wrap.classList.remove('open');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+          }
+        });
+      }
+    }
+
+    function buildYearFilters(years) {
+      allYears = years && years.length ? years : [2014, 2018, 2022];
+      if (currentYear === null && allYears.length) currentYear = allYears[allYears.length - 1];
+      var el = document.getElementById('yearFilters');
+      el.innerHTML = allYears.map(function(y) {
+        return '<button type="button" class="year-filters-btn ' + (y === currentYear ? 'active' : '') + '" data-year="' + y + '">' + y + '</button>';
+      }).join('');
+      el.querySelectorAll('.year-filters-btn').forEach(function(btn) {
+        btn.onclick = function() {
+          currentYear = parseInt(btn.dataset.year, 10);
+          el.querySelectorAll('.year-filters-btn').forEach(function(b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          loadSummary();
+          loadTeradataIndicators();
+        };
+      });
+    }
+
+    function loadSummary() {
+      var container = document.getElementById('top5ByDeptContainer');
+      var loadingEl = document.getElementById('top5ByDeptLoading');
+      if (!selectedDeptCodes.length) {
+        if (container) container.innerHTML = '';
+        updateTop5ByDeptCharts({}, []);
+        return;
+      }
+      if (currentYear === null && allYears.length) currentYear = allYears[allYears.length - 1];
+      if (container) container.innerHTML = '';
+      if (loadingEl) { loadingEl.style.display = 'block'; loadingEl.innerHTML = '<div class="loading-inline"><div class="spinner"></div><span>Cargando resultados…</span></div>'; }
+      var params = 'year=' + (currentYear || 2022) + '&departments=' + encodeURIComponent(uniqueDeptCodes(selectedDeptCodes).join(','));
+      var corp = (document.getElementById('filterCorporacion') && document.getElementById('filterCorporacion').value) ? document.getElementById('filterCorporacion').value : '';
+      if (corp) params += '&corporation=' + encodeURIComponent(corp);
+      fetch(API + '/api/congreso-report/summary?' + params)
+        .then(function(res) { if (!res.ok) throw new Error(res.statusText); return res.json(); })
+        .then(function(data) {
+          updateTop5ByDeptCharts(data.top5ByDept || {}, data.top5Parties || []);
+        })
+        .catch(function(e) {
+          if (loadingEl) {
+            loadingEl.style.display = 'block';
+            loadingEl.innerHTML = '<span class="error-msg">No se pudieron cargar los resultados.</span> <button type="button" class="btn-retry" id="retrySummary">Reintentar</button>';
+            var btn = document.getElementById('retrySummary');
+            if (btn) btn.onclick = function() { loadSummary(); };
+          }
+          setStatus(false, 'Error en resumen: ' + e.message);
+          updateTop5ByDeptCharts({}, []);
+        });
+    }
+
+    function updateTop5ByDeptCharts(top5ByDept, top5Parties) {
+      var container = document.getElementById('top5ByDeptContainer');
+      var loadingEl = document.getElementById('top5ByDeptLoading');
+      if (!container || !loadingEl) return;
+      container.innerHTML = '';
+      if (!selectedDeptCodes.length) {
+        loadingEl.style.display = 'block';
+        loadingEl.textContent = 'Selecciona departamentos y año.';
+        return;
+      }
+      var uniq = uniqueDeptCodes(selectedDeptCodes);
+      var hasAny = uniq.some(function(cod) {
+        var list = top5ByDept[cod] || top5ByDept[normDeptCode(cod)];
+        return list && list.length > 0;
+      });
+      if (!hasAny) {
+        loadingEl.style.display = 'block';
+        loadingEl.textContent = 'Sin datos para el año seleccionado.';
+        return;
+      }
+      loadingEl.style.display = 'none';
+      uniq.forEach(function(cod, idx) {
+        var deptName = nameByCode[cod] || cod;
+        var list = top5ByDept[cod] || top5ByDept[normDeptCode(cod)] || [];
+        if (list.length === 0) return;
+        var winner = list[0];
+        var partyName = (winner.partyName || '').trim() || '—';
+        var votes = winner.votes != null ? Number(winner.votes).toLocaleString('es') : '—';
+        var block = document.createElement('div');
+        block.className = 'top5-dept-block top5-dept-block--' + (idx % 3);
+        block.innerHTML = '<div class="top5-dept-title">' + escapeHtml(deptName) + '</div>' +
+          '<div class="top5-dept-winner">' +
+          '<div class="party-name">' + escapeHtml(partyName) + '</div>' +
+          '<div class="vote-count">' + escapeHtml(votes) + ' votos</div>' +
+          '</div>';
+        container.appendChild(block);
+      });
+    }
+
+    function loadTrend() {
+      var canvas = document.getElementById('trendChart');
+      var loading = document.getElementById('trendLoading');
+      if (!canvas || !loading) return;
+      loading.innerHTML = '';
+      if (!selectedDeptCodes.length) { loading.innerHTML = '<span class="empty-state" style="padding:0.5rem 0">Selecciona departamentos para ver la tendencia.</span>'; return; }
+      loading.innerHTML = '<div class="loading-inline"><div class="spinner"></div><span>Cargando tendencia…</span></div>';
+      var trendParams = 'departments=' + encodeURIComponent(uniqueDeptCodes(selectedDeptCodes).join(','));
+      var corpEl = document.getElementById('filterCorporacion');
+      if (corpEl && corpEl.value) trendParams += '&corporation=' + encodeURIComponent(corpEl.value);
+      fetch(API + '/api/congreso-report/trend?' + trendParams)
+        .then(function(res) { if (!res.ok) throw new Error(res.statusText); return res.json(); })
+        .then(function(data) {
+          loading.innerHTML = '';
+          var years = data.years || [];
+          var series = data.series || [];
+          if (trendChartInstance) trendChartInstance.destroy();
+          if (!years.length || !series.length) { loading.innerHTML = '<span class="loading-data">Sin datos para la tendencia histórica.</span>'; return; }
+          trendChartInstance = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+              labels: years.map(function(y) { return String(y); }),
+              datasets: series.map(function(s, i) {
+                return {
+                  label: s.department || s.codigo_departamento || 'Depto ' + (i + 1),
+                  data: s.data || [],
+                  borderColor: COLORS[i % COLORS.length],
+                  backgroundColor: (COLORS[i % COLORS.length] || '') + '22',
+                  fill: false,
+                  tension: 0.2,
+                };
+              }),
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              layout: { padding: { top: 8, bottom: 8, left: 4, right: 8 } },
+              plugins: { legend: { position: 'bottom', labels: { color: '#6b7280', font: { size: 12 }, padding: 12 } } },
+              scales: {
+                x: { title: { display: true, text: 'Año', color: '#6b7280', font: { size: 11 } }, ticks: { color: '#6b7280', font: { size: 11 } } },
+                y: { title: { display: true, text: 'Votos', color: '#6b7280', font: { size: 11 } }, ticks: { color: '#6b7280', font: { size: 11 }, callback: function(v) { return typeof v === 'number' ? v.toLocaleString('es') : v; } } },
+              },
+            },
+          });
+        })
+        .catch(function(e) {
+          loading.innerHTML = '<span class="error-msg">No se pudo cargar la tendencia.</span> <button type="button" class="btn-retry" id="retryTrend">Reintentar</button>';
+          var btn = document.getElementById('retryTrend');
+          if (btn) btn.onclick = function() { loadTrend(); };
+        });
+    }
+
+    function init() {
+      initMap();
+
+      fetch(API + '/health')
+        .then(function(res) { setStatus(res.ok, res.ok ? null : 'API no responde'); return res.ok ? Promise.resolve() : Promise.reject(new Error('API no disponible')); })
+        .catch(function() { setStatus(false, 'No se pudo conectar a ' + API + '. ¿Backend en marcha?'); });
+
+      fetch(API + '/api/congreso-report/departments')
+        .then(function(res) { return res.ok ? res.json() : { departments: [] }; })
+        .then(function(data) {
+          var depts = data.departments && data.departments.length ? data.departments : [];
+          buildDeptSelect(depts);
+        })
+        .catch(function() { buildDeptSelect([]); });
+
+      fetch(API + '/api/congreso-report/years')
+        .then(function(res) { return res.ok ? res.json() : { years: [] }; })
+        .then(function(data) {
+          var years = data.years && data.years.length ? data.years : [2014, 2018, 2022];
+          buildYearFilters(years);
+        })
+        .catch(function() { buildYearFilters([2014, 2018, 2022]); });
+
+      loadCorporations().then(function() {
+        updateTitle();
+        loadSummary();
+        loadTrend();
+      });
+
+      var corpSel = document.getElementById('filterCorporacion');
+      if (corpSel) corpSel.addEventListener('change', function() { loadSummary(); loadTrend(); loadTeradataIndicators(); });
+    }
+    init();
+  </script>
+</body>
+</html>

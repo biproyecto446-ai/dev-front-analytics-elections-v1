@@ -1,5 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "rewrites": [
+    { "source": "/analisis-indicadores", "destination": "/index.html" },
+    { "source": "/top-partidos", "destination": "/top-partidos.html" }
+  ]
 }
